@@ -1,8 +1,13 @@
 package uk.ac.rhul.csle.tooling.parsing;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.Stack;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import uk.ac.rhul.csle.tooling.io.IOReadWrite;
 
@@ -22,29 +27,236 @@ import uk.ac.rhul.csle.tooling.io.IOReadWrite;
  */
 public class GLL {
 
+  private class GLLRunnable implements Runnable {
+
+    private GSSNode currentGSSNode;
+
+    private SPPFNode currentSPPFNode;
+
+    private int currentCharacterIndex;
+
+    private final Labels callFunction;
+
+    public GLLRunnable(Labels callFunction, GSSNode currentGSSNode,
+            int currentCharacterIndex, SPPFNode currentSPPFNode) {
+      this.currentGSSNode = currentGSSNode;
+      this.currentSPPFNode = currentSPPFNode;
+      this.currentCharacterIndex = currentCharacterIndex;
+      this.callFunction = callFunction;
+    }
+
+    @Override
+    public void run() {
+      switch (callFunction) {
+        case LA:
+          parseLA();
+          break;
+        case LA1:
+          parseLA1();
+          break;
+        case LA2:
+          parseLA2();
+          break;
+        case LB:
+          parseLB();
+          break;
+        case LB1:
+          parseLB1();
+          break;
+        case LB2:
+          parseLB2();
+          break;
+        case LS:
+          parseLS();
+          break;
+        case LS1:
+          parseLS1();
+          break;
+        case LS2:
+          parseLS2();
+          break;
+        case LS3:
+          parseLS3();
+          break;
+        case RA1:
+          parseRA1();
+          break;
+        case RB1:
+          parseRB1();
+          break;
+        case RS1:
+          parseRS1();
+          break;
+        case RS2:
+          parseRS2();
+          break;
+        default:
+          break;
+      }
+    }
+
+    // A ::= c .
+    private void parseLA2() {
+      if (input[currentCharacterIndex] == 'c') {
+        mostRecentTerminalNode =
+                getNodeL("c", currentCharacterIndex, ++currentCharacterIndex);
+        currentSPPFNode =
+                getNode(callFunction, currentSPPFNode, mostRecentTerminalNode);
+        pop(currentGSSNode, currentCharacterIndex, currentSPPFNode);
+      }
+    }
+
+    // A ::= a .
+    private void parseLA1() {
+      if (input[currentCharacterIndex] == 'a') {
+        mostRecentTerminalNode =
+                getNodeL("a", currentCharacterIndex, ++currentCharacterIndex);
+        currentSPPFNode =
+                getNode(callFunction, currentSPPFNode, mostRecentTerminalNode);
+        pop(currentGSSNode, currentCharacterIndex, currentSPPFNode);
+      }
+    }
+
+    // A ::= .a | .c
+    private void parseLA() {
+      if (testSelect(input[currentCharacterIndex], "A", "a")) {
+        add(Labels.LA1, currentGSSNode, currentCharacterIndex, new SPPFNode(
+                "$", -1, -1));
+      }
+      if (testSelect(input[currentCharacterIndex], "A", "c")) {
+        add(Labels.LA2, currentGSSNode, currentCharacterIndex, new SPPFNode(
+                "$", -1, -1));
+      }
+    }
+
+    // B ::= b .
+    private void parseLB2() {
+      if (input[currentCharacterIndex] == 'b') {
+        mostRecentTerminalNode =
+                getNodeL("b", currentCharacterIndex, ++currentCharacterIndex);
+        currentSPPFNode =
+                getNode(callFunction, currentSPPFNode, mostRecentTerminalNode);
+        pop(currentGSSNode, currentCharacterIndex, currentSPPFNode);
+      }
+    }
+
+    // B ::= a .
+    private void parseLB1() {
+      if (input[currentCharacterIndex] == 'a') {
+        mostRecentTerminalNode =
+                getNodeL("a", currentCharacterIndex, ++currentCharacterIndex);
+        currentSPPFNode =
+                getNode(callFunction, currentSPPFNode, mostRecentTerminalNode);
+        pop(currentGSSNode, currentCharacterIndex, currentSPPFNode);
+      }
+    }
+
+    // B ::= .a | .b
+    private void parseLB() {
+      if (testSelect(input[currentCharacterIndex], "B", "a")) {
+        add(Labels.LB1, currentGSSNode, currentCharacterIndex, new SPPFNode(
+                "$", -1, -1));
+      }
+      if (testSelect(input[currentCharacterIndex], "B", "b")) {
+        add(Labels.LB2, currentGSSNode, currentCharacterIndex, new SPPFNode(
+                "$", -1, -1));
+      }
+    }
+
+    // S ::= .
+    private void parseLS3() {
+      mostRecentTerminalNode =
+              getNodeL("#", currentCharacterIndex, currentCharacterIndex);
+      currentSPPFNode =
+              getNode(callFunction, currentSPPFNode, mostRecentTerminalNode);
+      pop(currentGSSNode, currentCharacterIndex, currentSPPFNode);
+    }
+
+    // S ::= B S .
+    private void parseRS2() {
+      pop(currentGSSNode, currentCharacterIndex, currentSPPFNode);
+    }
+
+    // S ::= B S .
+    private void parseRB1() {
+      if (testSelect(input[currentCharacterIndex], "S", "S")) {
+        currentGSSNode =
+                create(Labels.RS2, currentGSSNode, currentCharacterIndex,
+                        currentSPPFNode);
+        add(Labels.LS, currentGSSNode, currentCharacterIndex, currentSPPFNode);
+      }
+    }
+
+    // S ::= B . S
+    private void parseLS2() {
+      currentGSSNode =
+              create(Labels.RB1, currentGSSNode, currentCharacterIndex,
+                      currentSPPFNode);
+      add(Labels.LB, currentGSSNode, currentCharacterIndex, currentSPPFNode);
+    }
+
+    // S ::= A S d .
+    private void parseRS1() {
+      if (input[currentCharacterIndex] == 'd') {
+        mostRecentTerminalNode =
+                getNodeL("d", currentCharacterIndex, ++currentCharacterIndex);
+        currentSPPFNode =
+                getNode(callFunction, currentSPPFNode, mostRecentTerminalNode);
+        pop(currentGSSNode, currentCharacterIndex, currentSPPFNode);
+      }
+    }
+
+    // S ::= A S . d
+    private void parseRA1() {
+      if (testSelect(input[currentCharacterIndex], "S", "Sd")) {
+        currentGSSNode =
+                create(Labels.RS1, currentGSSNode, currentCharacterIndex,
+                        currentSPPFNode);
+        add(Labels.LS, currentGSSNode, currentCharacterIndex, currentSPPFNode);
+      }
+    }
+
+    // S ::= A . S d
+    private void parseLS1() {
+      currentGSSNode =
+              create(Labels.RA1, currentGSSNode, currentCharacterIndex,
+                      currentSPPFNode);
+      add(Labels.LA, currentGSSNode, currentCharacterIndex, currentSPPFNode);
+
+    }
+
+    // S ::= .A S d | .B S | .
+    private void parseLS() {
+      if (testSelect(input[currentCharacterIndex], "S", "ASd")) {
+        add(Labels.LS1, currentGSSNode, currentCharacterIndex, new SPPFNode(
+                "$", -1, -1));
+      }
+      if (testSelect(input[currentCharacterIndex], "S", "BS")) {
+        add(Labels.LS2, currentGSSNode, currentCharacterIndex, new SPPFNode(
+                "$", -1, -1));
+      }
+      if (testSelect(input[currentCharacterIndex], "S", "#")) {
+        add(Labels.LS3, currentGSSNode, currentCharacterIndex, new SPPFNode(
+                "$", -1, -1));
+      }
+    }
+  }
+
   private final char[] input;
 
   private final int inputLength;
 
-  private GSSNode currentGSSNode;
-
-  private SPPFNode currentSPPFNode;
-
   private SPPFNode mostRecentTerminalNode;
 
-  private final ArrayList<GSSNode> GSS;
+  private final List<GSSNode> GSS;
 
-  private final ArrayList<SPPFNode> SPPF;
+  private final List<SPPFNode> SPPF;
 
-  private final HashSet<Descriptor> descriptorMemoizationState;
+  private final Set<Descriptor> descriptorMemoizationState;
 
   private final Stack<Descriptor> currentDescriptorSet;
 
-  private final HashSet<PPair> remainingPopSet;
-
-  private int currentCharacterIndex;
-
-  private Labels goTo;
+  private final Set<PPair> remainingPopSet;
 
   private final GSSNode initialNode;
 
@@ -84,9 +296,11 @@ public class GLL {
   public void pop(GSSNode gssNode, int characterPosition, SPPFNode node) {
     if (!gssNode.getAdjacencies().isEmpty()) {
       remainingPopSet.add(new PPair(gssNode, node));
-      for (GSSEdge edge : gssNode.getAdjacencies()) {
-        SPPFNode y = getNode(gssNode.getLabel(), edge.getLabel(), node);
-        add(gssNode.getLabel(), edge.getTo(), characterPosition, y);
+      synchronized (gssNode.getAdjacencies()) {
+        for (GSSEdge edge : gssNode.getAdjacencies()) {
+          SPPFNode y = getNode(gssNode.getLabel(), edge.getLabel(), node);
+          add(gssNode.getLabel(), edge.getTo(), characterPosition, y);
+        }
       }
     }
   }
@@ -264,11 +478,14 @@ public class GLL {
           int characterPosition, SPPFNode node) {
     GSSNode candidate = new GSSNode(label, characterPosition);
     boolean exists = false;
-    for (GSSNode g : GSS) {
-      if (g.equals(candidate)) {
-        candidate = g;
-        exists = true;
-        break;
+
+    synchronized (GSS) {
+      for (GSSNode g : GSS) {
+        if (g.equals(candidate)) {
+          candidate = g;
+          exists = true;
+          break;
+        }
       }
     }
     if (!exists) {
@@ -276,10 +493,12 @@ public class GLL {
     }
     if (!candidate.edgeExists(callingNode)) {
       candidate.addEdge(callingNode, node);
-      for (PPair p : remainingPopSet) {
-        if (p.getNode().equals(candidate)) {
-          SPPFNode y = getNode(candidate.getLabel(), node, p.getSPPFNode());
-          add(label, callingNode, p.getSPPFNode().getRightExtent(), y);
+      synchronized (remainingPopSet) {
+        for (PPair p : remainingPopSet) {
+          if (p.getNode().equals(candidate)) {
+            SPPFNode y = getNode(candidate.getLabel(), node, p.getSPPFNode());
+            add(label, callingNode, p.getSPPFNode().getRightExtent(), y);
+          }
         }
       }
     }
@@ -300,16 +519,14 @@ public class GLL {
     this.input = terminatedInput.toCharArray();
     inputLength = input.length();
     initialNode = new GSSNode(Labels.L0, 0);
-    currentGSSNode = initialNode;
-    currentSPPFNode = new SPPFNode("$", -1, -1);
-    currentCharacterIndex = 0;
-    remainingPopSet = new HashSet<PPair>();
+    remainingPopSet = Collections.synchronizedSet(new HashSet<PPair>());
     currentDescriptorSet = new Stack<Descriptor>();
-    GSS = new ArrayList<GSSNode>();
+    GSS = Collections.synchronizedList(new ArrayList<GSSNode>());
     GSS.add(initialNode);
-    SPPF = new ArrayList<SPPFNode>();
-    descriptorMemoizationState = new HashSet<Descriptor>();
-    goTo = Labels.LS;
+    SPPF = Collections.synchronizedList(new ArrayList<SPPFNode>());
+    descriptorMemoizationState =
+            Collections.synchronizedSet(new HashSet<Descriptor>());
+    add(Labels.LS, initialNode, 0, new SPPFNode("$", -1, -1));
   }
 
   /**
@@ -320,235 +537,22 @@ public class GLL {
    *           If the string is not in the language
    */
   public boolean parse() throws InvalidParseException {
-    boolean truthvalue = false;
-    programloop: while (true) {
-      switch (goTo) {
-        case L0:
-          truthvalue = parseL0();
-          if (truthvalue) {
-            // Force a terminating state
-            goTo = Labels.DOLLAR;
-          }
-          break;
-        case LA:
-          parseLA();
-          break;
-        case LA1:
-          parseLA1();
-          break;
-        case LA2:
-          parseLA2();
-          break;
-        case LB:
-          parseLB();
-          break;
-        case LB1:
-          parseLB1();
-          break;
-        case LB2:
-          parseLB2();
-          break;
-        case LS:
-          parseLS();
-          break;
-        case LS1:
-          parseLS1();
-          break;
-        case LS2:
-          parseLS2();
-          break;
-        case LS3:
-          parseLS3();
-          break;
-        case RA1:
-          parseRA1();
-          break;
-        case RB1:
-          parseRB1();
-          break;
-        case RS1:
-          parseRS1();
-          break;
-        case RS2:
-          parseRS2();
-          break;
-        default:
-          break programloop;
+    while (!currentDescriptorSet.isEmpty()) {
+      ExecutorService es =
+              Executors.newFixedThreadPool(currentDescriptorSet.size());
+
+      while (!currentDescriptorSet.isEmpty()) {
+        Descriptor next = currentDescriptorSet.pop();
+        es.execute(new GLLRunnable(next.getLabel(), next.getGssNode(), next
+                .getInputPosition(), next.getNode()));
+      }
+
+      es.shutdown();
+      while (!es.isTerminated()) {
+
       }
     }
-    return truthvalue;
-  }
-
-  // A ::= c .
-  private void parseLA2() {
-    if (input[currentCharacterIndex] == 'c') {
-      mostRecentTerminalNode =
-              getNodeL("c", currentCharacterIndex, ++currentCharacterIndex);
-      currentSPPFNode = getNode(goTo, currentSPPFNode, mostRecentTerminalNode);
-      pop(currentGSSNode, currentCharacterIndex, currentSPPFNode);
-    }
-    goTo = Labels.L0;
-  }
-
-  // A ::= a .
-  private void parseLA1() {
-    if (input[currentCharacterIndex] == 'a') {
-      mostRecentTerminalNode =
-              getNodeL("a", currentCharacterIndex, ++currentCharacterIndex);
-      currentSPPFNode = getNode(goTo, currentSPPFNode, mostRecentTerminalNode);
-      pop(currentGSSNode, currentCharacterIndex, currentSPPFNode);
-    }
-    goTo = Labels.L0;
-  }
-
-  // A ::= .a | .c
-  private void parseLA() {
-    if (testSelect(input[currentCharacterIndex], "A", "a")) {
-      add(Labels.LA1, currentGSSNode, currentCharacterIndex, new SPPFNode("$",
-              -1, -1));
-    }
-    if (testSelect(input[currentCharacterIndex], "A", "c")) {
-      add(Labels.LA2, currentGSSNode, currentCharacterIndex, new SPPFNode("$",
-              -1, -1));
-    }
-    goTo = Labels.L0;
-  }
-
-  // B ::= b .
-  private void parseLB2() {
-    if (input[currentCharacterIndex] == 'b') {
-      mostRecentTerminalNode =
-              getNodeL("b", currentCharacterIndex, ++currentCharacterIndex);
-      currentSPPFNode = getNode(goTo, currentSPPFNode, mostRecentTerminalNode);
-      pop(currentGSSNode, currentCharacterIndex, currentSPPFNode);
-    }
-    goTo = Labels.L0;
-  }
-
-  // B ::= a .
-  private void parseLB1() {
-    if (input[currentCharacterIndex] == 'a') {
-      mostRecentTerminalNode =
-              getNodeL("a", currentCharacterIndex, ++currentCharacterIndex);
-      currentSPPFNode = getNode(goTo, currentSPPFNode, mostRecentTerminalNode);
-      pop(currentGSSNode, currentCharacterIndex, currentSPPFNode);
-    }
-
-    goTo = Labels.L0;
-  }
-
-  // B ::= .a | .b
-  private void parseLB() {
-    if (testSelect(input[currentCharacterIndex], "B", "a")) {
-      add(Labels.LB1, currentGSSNode, currentCharacterIndex, new SPPFNode("$",
-              -1, -1));
-    }
-    if (testSelect(input[currentCharacterIndex], "B", "b")) {
-      add(Labels.LB2, currentGSSNode, currentCharacterIndex, new SPPFNode("$",
-              -1, -1));
-    }
-    goTo = Labels.L0;
-  }
-
-  // S ::= .
-  private void parseLS3() {
-    mostRecentTerminalNode =
-            getNodeL("#", currentCharacterIndex, currentCharacterIndex);
-    currentSPPFNode = getNode(goTo, currentSPPFNode, mostRecentTerminalNode);
-    pop(currentGSSNode, currentCharacterIndex, currentSPPFNode);
-    goTo = Labels.L0;
-  }
-
-  // S ::= B S .
-  private void parseRS2() {
-    pop(currentGSSNode, currentCharacterIndex, currentSPPFNode);
-    goTo = Labels.L0;
-  }
-
-  // S ::= B . S
-  private void parseRB1() {
-    if (testSelect(input[currentCharacterIndex], "S", "S")) {
-      currentGSSNode =
-              create(Labels.RS2, currentGSSNode, currentCharacterIndex,
-                      currentSPPFNode);
-      goTo = Labels.LS;
-    } else {
-      goTo = Labels.L0;
-    }
-  }
-
-  // S ::= . B S
-  private void parseLS2() {
-    currentGSSNode =
-            create(Labels.RB1, currentGSSNode, currentCharacterIndex,
-                    currentSPPFNode);
-    goTo = Labels.LB;
-  }
-
-  // S ::= A S d .
-  private void parseRS1() {
-    if (input[currentCharacterIndex] == 'd') {
-      mostRecentTerminalNode =
-              getNodeL("d", currentCharacterIndex, ++currentCharacterIndex);
-      currentSPPFNode = getNode(goTo, currentSPPFNode, mostRecentTerminalNode);
-      pop(currentGSSNode, currentCharacterIndex, currentSPPFNode);
-    }
-    goTo = Labels.L0;
-  }
-
-  // S ::= A . S d
-  private void parseRA1() {
-    if (testSelect(input[currentCharacterIndex], "S", "Sd")) {
-      currentGSSNode =
-              create(Labels.RS1, currentGSSNode, currentCharacterIndex,
-                      currentSPPFNode);
-      goTo = Labels.LS;
-    } else {
-      goTo = Labels.L0;
-    }
-  }
-
-  // S ::= . A S d
-  private void parseLS1() {
-    currentGSSNode =
-            create(Labels.RA1, currentGSSNode, currentCharacterIndex,
-                    currentSPPFNode);
-    goTo = Labels.LA;
-
-  }
-
-  // S ::= .A S d | .B S | .
-  private void parseLS() {
-    if (testSelect(input[currentCharacterIndex], "S", "ASd")) {
-      add(Labels.LS1, currentGSSNode, currentCharacterIndex, new SPPFNode("$",
-              -1, -1));
-    }
-    if (testSelect(input[currentCharacterIndex], "S", "BS")) {
-      add(Labels.LS2, currentGSSNode, currentCharacterIndex, new SPPFNode("$",
-              -1, -1));
-    }
-    if (testSelect(input[currentCharacterIndex], "S", "#")) {
-      add(Labels.LS3, currentGSSNode, currentCharacterIndex, new SPPFNode("$",
-              -1, -1));
-    }
-    goTo = Labels.L0;
-  }
-
-  /**
-   * Parse function for iterating through the remaining descriptors.
-   * 
-   * @return true if the string is in the language
-   * @throws InvalidParseException
-   *           if the string is not in the language
-   */
-  private boolean parseL0() throws InvalidParseException {
-    if (!currentDescriptorSet.isEmpty()) {
-      Descriptor next = currentDescriptorSet.pop();
-      currentGSSNode = next.getGssNode();
-      currentSPPFNode = next.getNode();
-      currentCharacterIndex = next.getInputPosition();
-      goTo = next.getLabel();
-    } else if (SPPF.contains(new SPPFNode("S", 0, inputLength))) {
+    if (SPPF.contains(new SPPFNode("S", 0, inputLength))) {
       sppfToVCG();
       gssToVCG();
       return true;
@@ -558,7 +562,6 @@ public class GLL {
       }
       throw new InvalidParseException();
     }
-    return false;
   }
 
   /**

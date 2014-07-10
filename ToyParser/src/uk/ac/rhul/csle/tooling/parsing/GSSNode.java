@@ -1,6 +1,8 @@
 package uk.ac.rhul.csle.tooling.parsing;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Object to denote a GSS node
@@ -22,16 +24,16 @@ public class GSSNode {
     return index;
   }
 
-  private final ArrayList<GSSEdge> adjacencies;
+  private final List<GSSEdge> adjacencies;
 
-  public ArrayList<GSSEdge> getAdjacencies() {
+  public List<GSSEdge> getAdjacencies() {
     return adjacencies;
   }
 
   public GSSNode(Labels label, int index) {
     this.label = label;
     this.index = index;
-    adjacencies = new ArrayList<GSSEdge>();
+    adjacencies = Collections.synchronizedList(new ArrayList<GSSEdge>());
   }
 
   @Override
